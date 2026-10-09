@@ -1,0 +1,22 @@
+﻿function                 ops    max  status
+signMask                   1      2  ok
+bitXor                     7      8  ok
+negativePart               5      6  ok
+copyByteWithin            10     12  ok
+logicalShift               6     20  ok
+swapNibblePairs            9     18  ok
+secondLowestZeroBit        8      8  ok
+oddParity                 12     56  ok
+rotateRightBits           13     16  ok
+roundEvenPow2             22     24  ok
+midpointTowardFirst       26     32  ok
+isBetweenEitherOrder      43     48  ok
+mul5Sat                   29     30  ok
+classifyAdd3              23     52  ok
+floatScaleThreeHalves     57     60  ok
+floatRoundEven            32     65  ok
+float_i2f                 14     40  ok
+bitCount                  28     40  ok
+bitReverse                35     34  OVER by 1
+
+over limit: bitReverse

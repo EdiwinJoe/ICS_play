@@ -1,0 +1,21 @@
+﻿Score	Rating	Errors	Function
+ 1	1	0	signMask
+ 2	2	0	bitXor
+ 3	3	0	negativePart
+ 4	4	0	copyByteWithin
+ 4	4	0	logicalShift
+ 4	4	0	swapNibblePairs
+ 4	4	0	secondLowestZeroBit
+ 5	5	0	oddParity
+ 5	5	0	rotateRightBits
+ 5	5	0	roundEvenPow2
+ 5	5	0	midpointTowardFirst
+ 7	7	0	isBetweenEitherOrder
+ 7	7	0	mul5Sat
+ 7	7	0	classifyAdd3
+ 7	7	0	floatScaleThreeHalves
+ 10	10	0	floatRoundEven
+ 10	10	0	float_i2f
+ 10	10	0	bitCount
+ 10	10	0	bitReverse
+Total points: 110/110
