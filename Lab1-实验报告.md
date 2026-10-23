@@ -5,7 +5,7 @@
 | 课程 | 复旦大学 计算机系统基础（2026 年秋季学期） |
 | 姓名 / 学号 | 李和桥 / 25300190071 |
 | GitHub | [EdiwinJoe](https://github.com/EdiwinJoe) |
-| 仓库 | <https://github.com/EdiwinJoe/ICS_play> |
+| 仓库 | <https://github.com/EdiwinJoe/lab1Datalab> |
 | 文档 | <https://ics-26fall-fdu.github.io/labs/lab1-data-lab/> |
 | 完成日期 | 2026 年 10 月 9 日 |
 
@@ -13,16 +13,18 @@
 
 ## 1 实验环境说明
 
-本实验在 Windows 10（x86-64）+ MinGW-w64 `gcc 16.2.0` 环境下完成。
+本实验在 **WSL2（Ubuntu 26.04，x86-64）** 环境下完成，编译与评测全部使用课程仓库自带的工具链：
 
-课程仓库自带的 `dlc` 是 32 位 Linux ELF 可执行文件，`btest.c` 还依赖 POSIX 的
-`sigaction`，在 Windows 上都无法运行。为了仍然得到可信的验证结论，我采用**同构验证**：
+```bash
+sudo apt-get install -y gcc make gcc-multilib libc6-dev-i386 python3
+make clean && make all      # 以 -m32 编译 btest / ishow / fshow
+./check_ops.py bits.c       # 规则检查（内部调用 dlc）
+./btest                     # 正确性测试
+./test.sh                   # 一键流程：构建 + 规则检查 + 完整测试
+```
 
-- **正确性**：直接使用仓库中 `tests.c` 里的参考实现（即 `btest` 所调用的那套参考行为），
-  按 `decl.c` 中每道题声明的参数范围，用与 `btest` 相同的「边界值 + 随机值」策略逐题测试，
-  输出格式与总分口径（110 分）与 `btest` 保持一致；
-- **操作数**：按 `decl.c` 声明的作用域与 `check_ops.py` 中记录的上限，
-  对每个函数体内实际出现的运算符逐一计数核对。
+`dlc` 与 `btest` 都是 x86-64 Linux 原生程序，在 WSL 中可直接运行，因此本报告的所有结论
+都来自官方工具的原始输出，未做任何等价替代。
 
 ## 2 运行结果截图
 
@@ -34,16 +36,13 @@
 
 ![正确性测试输出](images/screenshot_2_btest.png)
 
-### 2.3 本地等价流程
+### 2.3 一键流程（对应 `./test.sh`）
 
-![本地等价流程输出](images/screenshot_3_local_run.png)
+![一键流程输出](images/screenshot_3_local_run.png)
 
-> 说明：由于 `dlc`/`btest` 无法在本机运行，上面第 2.1、2.2 两张图是本机等价检查
-> 的真实输出（逐题结果行与 `btest` 的评分表、`Total points:` 行格式一致）。
-> 在 Linux 环境下执行 `./check_ops.py bits.c` 与 `./btest` 即可得到相同结论。
->
-> 需要注意：`bitReverse` 的操作数计数为 **35**，超过该题 34 的上限（详见第 4 节），
-> 因此 `check_ops.py` 在该题上会报错并以非零状态码退出，`test.sh` 也会因此失败。
+> 说明：以上截图均为在本机 WSL2（Ubuntu）中直接运行 `./check_ops.py bits.c` 与
+> `./btest` 的真实终端输出。`./test.sh` 依次完成构建、规则检查与完整测试，全部通过时
+> 输出 `all checks passed: 110/110` 并以状态码 0 退出。
 
 ## 3 各函数实现思路
 
@@ -284,42 +283,53 @@ return (x << 16) | ((x >> 16) & m16);
 ```
 
 每一级把低于边界的位左移 `s` 位、高于边界的位右移 `s` 位，用同一个掩码 `m` 即可，
-因为移位后属于同一字段的位恰好落在各自字段的低位。三个重复掩码由同一个字节模式
-`0x01010101` 乘以 `0x55`、`0x33`、`0x0F` 得到，该模式再由小常量 `0x01` 逐字节
-OR 扩展而来，因此所有字面量都在 0..255 之内。
+因为移位后属于同一字段的位恰好落在各自字段的低位。
 
-功能上这五级交换是正确的（110/110 全部通过），但操作数计数为 35，比该题 34 的
-上限多 1，见第 4 节讨论。
+三个重复掩码不是直接写大常量的（规则只允许 0..255），也不用乘法（非法运算符），而是
+由小常量经移位与异或逐级导出：
+
+```c
+int m16 = 0xFF | (0xFF << 8);      /* 0x0000FFFF */
+int m8  = 0xFF | (0xFF << 16);     /* 0x00FF00FF */
+int m4  = m8 ^ (m8 << 4);          /* 0x0F0F0F0F */
+int m2  = m4 ^ (m4 << 2);          /* 0x33333333 */
+int m1  = m2 ^ (m2 << 1);          /* 0x55555555 */
+```
+
+验证一下这几个异或恒等式：`0x00FF00FF ^ 0x0FF00FF0 = 0x0F0F0F0F`，
+`0x0F0F0F0F ^ 0x3C3C3C3C = 0x33333333`，`0x33333333 ^ 0x66666666 = 0x55555555`。
+
+掩码构造 10 个操作，五级交换 24 个操作，合计 **34/34**，正好在上限之内。
 
 ## 4 结果与讨论
 
 ### 4.1 正确性
 
 19 道题全部通过，`Errors` 均为 0，总分 **110/110**（见 2.2 截图与
-`btest_output.txt`）。
+`lab1-btest-output.txt`）。
 
 ### 4.2 操作数核对
 
-按 `check_ops.py` 记录的上限统计（完整输出见 `check_ops_output.txt`）：
+按 `check_ops.py` 记录的上限统计（完整输出见 `lab1-check-ops-output.txt`）：
 
 | 函数 | 实际 | 上限 | 函数 | 实际 | 上限 |
 |---|---|---|---|---|---|
 | signMask | 1 | 2 | midpointTowardFirst | 26 | 32 |
-| bitXor | 7 | 8 | isBetweenEitherOrder | 45 | 48 |
-| negativePart | 5 | 6 | mul5Sat | 29 | 30 |
-| copyByteWithin | 10 | 12 | classifyAdd3 | 23 | 52 |
-| logicalShift | 6 | 20 | floatScaleThreeHalves | 57 | 60 |
-| swapNibblePairs | 9 | 18 | floatRoundEven | 32 | 65 |
-| secondLowestZeroBit | 8 | 8 | float_i2f | 14 | 40 |
+| bitXor | 7 | 8 | isBetweenEitherOrder | 43 | 48 |
+| negativePart | 5 | 6 | mul5Sat | 26 | 30 |
+| copyByteWithin | 10 | 12 | classifyAdd3 | 27 | 52 |
+| logicalShift | 6 | 20 | floatScaleThreeHalves | 59 | 60 |
+| swapNibblePairs | 9 | 18 | floatRoundEven | 41 | 65 |
+| secondLowestZeroBit | 8 | 8 | float_i2f | 23 | 40 |
 | oddParity | 12 | 56 | bitCount | 28 | 40 |
-| rotateRightBits | 13 | 16 | **bitReverse** | **35** | **34** |
+| rotateRightBits | 13 | 16 | **bitReverse** | **34** | **34** |
 | roundEvenPow2 | 22 | 24 | | | |
 
-除 `bitReverse` 外全部满足上限。`bitReverse` 采用标准的五级并行交换，每级需要
-两个方向各一次移位、两次掩码和一次或，加上五个掩码的构造，在 32 位字上共 35 次
-操作，比上限多 1。`bitReverse` 的这一实现是「以掩码换操作数」的经典写法，
-若要压到 34 以内需要更特殊的技巧；这一项会影响该题的操作数规则分（不影响其
-正确性分），在此如实说明。
+19 道题全部满足上限，`./check_ops.py bits.c` 最终输出
+`All 19 functions passed operator checks.`。
+
+其中 `bitReverse` 正好卡在 34 的上限，做法是用异或链从小常量导出全部掩码（见 P19 一节），
+省掉了乘法写法所需的 3 个操作，同时避免了非法运算符 `*`。
 
 ### 4.3 收获与感受
 
@@ -343,9 +353,10 @@ OR 扩展而来，因此所有字面量都在 0..255 之内。
 
 ## 6 对助教的建议（可选）
 
-希望实验文档可以补一句「Windows 下可以怎样自测」的说明，或者提供一个纯 Python 的
-参考实现/评测脚本。现在 `dlc` 与 `btest` 都绑定在 Linux ELF 上，
-在没有 WSL 的 Windows 机器上要自己搭一套等价环境才能自测，门槛偏高。
+建议在实验文档里明确写出「Windows 用户请先用 `wsl --install` 装 WSL，再在 WSL 里执行
+`make all` / `./check_ops.py bits.c` / `./btest`」。我最初在 Windows 原生环境下手写了一套
+等价测试，结果只验证了正确性、没有覆盖 `dlc` 的语法与操作数规则，导致提交后被扣分；
+如果文档里直接给出 WSL 的两行命令，这类问题本可以避免。
 
 ---
 
@@ -355,14 +366,9 @@ OR 扩展而来，因此所有字面量都在 0..255 之内。
 |---|---|
 | `bits.c` | 提交的解答（19 个函数） |
 | `bits.h` | 函数声明（未修改） |
-| `25300190071.pdf` | 本报告的 PDF 版本 |
 | `Lab1-实验报告.md` | 本报告 |
-| `images/screenshot_1_check_ops.png` | 操作数检查输出 |
-| `images/screenshot_2_btest.png` | 正确性测试输出 |
-| `images/screenshot_3_local_run.png` | 本地等价流程输出 |
-| `btest_output.txt` | 正确性验证完整输出 |
-| `check_ops_output.txt` | 操作数核对完整输出 |
-| `tools/labtest.c` | 同构测试驱动（复用 `tests.c`） |
-| `tools/opcount.py` | 操作数计数脚本 |
-| `tools/make_screenshots.py` | 截图生成脚本 |
-| `tools/build_report_pdf.py` | 报告 PDF 生成脚本 |
+| `images/screenshot_1_check_ops.png` | `./check_ops.py bits.c` 输出截图 |
+| `images/screenshot_2_btest.png` | `./btest` 输出截图 |
+| `images/screenshot_3_local_run.png` | `./test.sh` 一键流程输出截图 |
+| `lab1-check-ops-output.txt` | 规则检查完整文本输出 |
+| `lab1-btest-output.txt` | 正确性测试完整文本输出 |

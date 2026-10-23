@@ -1,4 +1,4 @@
-﻿Score	Rating	Errors	Function
+Score	Rating	Errors	Function
  1	1	0	signMask
  2	2	0	bitXor
  3	3	0	negativePart

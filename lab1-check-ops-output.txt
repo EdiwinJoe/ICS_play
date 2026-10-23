@@ -1,22 +1,20 @@
-﻿function                 ops    max  status
-signMask                   1      2  ok
-bitXor                     7      8  ok
-negativePart               5      6  ok
-copyByteWithin            10     12  ok
-logicalShift               6     20  ok
-swapNibblePairs            9     18  ok
-secondLowestZeroBit        8      8  ok
-oddParity                 12     56  ok
-rotateRightBits           13     16  ok
-roundEvenPow2             22     24  ok
-midpointTowardFirst       26     32  ok
-isBetweenEitherOrder      43     48  ok
-mul5Sat                   29     30  ok
-classifyAdd3              23     52  ok
-floatScaleThreeHalves     57     60  ok
-floatRoundEven            32     65  ok
-float_i2f                 14     40  ok
-bitCount                  28     40  ok
-bitReverse                35     34  OVER by 1
-
-over limit: bitReverse
+signMask: 1/2 operators
+bitXor: 7/8 operators
+negativePart: 5/6 operators
+copyByteWithin: 10/12 operators
+logicalShift: 6/20 operators
+swapNibblePairs: 9/18 operators
+secondLowestZeroBit: 8/8 operators
+oddParity: 12/56 operators
+rotateRightBits: 13/16 operators
+roundEvenPow2: 22/24 operators
+midpointTowardFirst: 26/32 operators
+isBetweenEitherOrder: 43/48 operators
+mul5Sat: 24/30 operators
+classifyAdd3: 27/52 operators
+floatScaleThreeHalves: 59/60 operators
+floatRoundEven: 41/65 operators
+float_i2f: 23/40 operators
+bitCount: 28/40 operators
+bitReverse: 34/34 operators
+All 19 functions passed operator checks.

@@ -403,11 +403,10 @@ int mul5Sat(int x) {
   int bnd = (0x19 << 24) + (0x99 << 16) + (0x99 << 8) + 0x99;
   int sx = x >> 31;
   int ax = (x ^ sx) + ~sx + 1;                       /* |x| */
-  int sb = bnd >> 31, sa = ax >> 31;
-  int d = sb ^ sa;
-  int over = ((d & sb) | (~d & ((bnd + ~ax + 1) >> 31))) & 1;
-  int limit = (sx & (int)0x80000000u) | ((~sx) & 0x7FFFFFFF);
-  return over ? limit : ((x << 2) + x);
+  int over = (bnd + ~ax + 1) >> 31;                  /* all 1s iff |x| > bnd */
+  int limit = (1 << 31) + ~sx;                       /* x<0: INT_MIN, else INT_MAX */
+  int prod = (x << 2) + x;
+  return (prod & ~over) | (limit & over);
 }
 
 // P14
@@ -431,14 +430,17 @@ int classifyAdd3(int x, int y, int z) {
      INT_MIN exactly when H >= -2^16.  Adding 2^16 shifts that window onto
      [0, 2^17) and pushes every other H outside it, so the test is simply
      whether (H + 2^16) has any bit at or above bit 17 set. */
+  int m15 = (0x7F << 8) + 0xFF;                      /* 0x7FFF */
   int hs = (x >> 15) + (y >> 15) + (z >> 15);
-  int ls = (x & 0x7FFF) + (y & 0x7FFF) + (z & 0x7FFF);
+  int ls = (x & m15) + (y & m15) + (z & m15);
   int H = hs + (ls >> 15);
-  unsigned q = (unsigned)(H + 0x10000);
-  unsigned hi = q >> 17;
-  unsigned inrange = (((hi | (0u + ~hi + 1)) >> 31) ^ 1u) & 1u;
-  unsigned positive = ((unsigned)H >> 31) ^ 1u;
-  return (int)(inrange) ? 0 : (int)(positive ? 1u : 0xFFFFFFFFu);
+  int q = H + (1 << 16);                             /* window [0, 2^17) */
+  int sh = q >> 17;
+  int inr = !sh;                                     /* in range */
+  int pos = ~(H >> 31) & 1;                          /* H >= 0 -> positive */
+  int val = (pos << 1) + ~0;                         /* 1 or -1 */
+  int mask = inr + ~0;                               /* 0 if in range, else all ones */
+  return mask & val;
 }
 
 // P15
@@ -466,7 +468,7 @@ unsigned floatScaleThreeHalves(unsigned uf) {
      result is subnormal, i.e. frac * 2^-149, which is num rounded against
      2^-(ex+149). */
   unsigned sign = uf & 0x80000000u;
-  int E = (int)((uf >> 23) & 0xFFu);
+  int E = (uf >> 23) & 0xFFu;
   unsigned M = (uf & 0x7FFFFFu) | (E ? 0x800000u : 0u);
   unsigned num, m, rem, half;
   int ex, field, sh, bl;
@@ -478,8 +480,8 @@ unsigned floatScaleThreeHalves(unsigned uf) {
   ex = (E ? E - 150 : -149);
   bl = 24 + ((num >> 24) != 0u) + ((num >> 25) != 0u);
   field = bl + ex + 125;
-  sh = field - 150 - ex + 1;             /* bits to drop: 0, 1 or 2       */
-  m = (sh >= 0) ? (num >> sh) : (num << (-sh));
+  sh = bl - 24;                          /* bits to drop: 0, 1 or 2       */
+  m = num >> sh;
 
   if (field >= 1) {                      /* normal result */
     rem = num & ((1u << sh) - 1u);
@@ -487,7 +489,7 @@ unsigned floatScaleThreeHalves(unsigned uf) {
     if (rem > half || (rem == half && (m & 1u))) m += 1u;
     if (m >= 0x1000000u) { m >>= 1; field += 1; }
     if (field >= 0xFF) return sign | 0x7F800000u;
-    return sign | ((unsigned)field << 23) | (m & 0x7FFFFFu);
+    return sign | (field << 23) | (m & 0x7FFFFFu);
   }
 
   /* Subnormal result: value = frac * 2^-149, so frac is num with one bit
@@ -566,8 +568,8 @@ unsigned floatRoundEven(unsigned uf) {
   /* y equals k * 2^s and k * 2^(exp-150+shift) is the rounded integer, so y is
      worth 2^(exp-150+shift-s).  Writing y as (2^23 + frac) * 2^(field-150) gives
      field = exp + shift - s directly. */
-  B = (int)exp + (int)shift - s;
-  return sign | ((unsigned)B << 23) | (y & 0x7FFFFFu);
+  B = exp + shift - s;
+  return sign | (B << 23) | (y & 0x7FFFFFu);
 }
 
 // P17
@@ -587,9 +589,9 @@ unsigned float_i2f(int x) {
     return 0u;
   if (x < 0) {
     sign = 0x80000000u;
-    mag = 0u - (unsigned)x;        /* also correct for INT_MIN */
+    mag = 0u - x;                  /* also correct for INT_MIN */
   } else {
-    mag = (unsigned)x;
+    mag = x;
   }
 
   e = 31u;
@@ -651,21 +653,18 @@ int bitReverse(int x)
 {
   /* Five parallel swap stages: neighbouring bits, pairs, nibbles, bytes and the
      two halves.  A stage that exchanges fields s apart keeps the bits below the
-     field boundary in m, moves them up by s, and moves the bits above down by s;
-     masking both halves with the same m works because after the shift the bits
-     that belong together sit in the low part of their field.
-     The three repeating masks are produced from a single byte pattern: 0x01010101
-     times 0x55, 0x33 and 0x0F gives 0x55555555, 0x33333333 and 0x0F0F0F0F.  The
-     pattern itself is grown from the small constant 0x01 by OR-ing a copy of
-     itself one byte higher, so every literal stays inside 0..255. */
-  int a = 0x01 | (0x01 << 8);
-  int m1, m2, m4, m8, m16;
-  a = a | (a << 16);                     /* 0x01010101 */
-  m1 = a * 0x55;                         /* 0x55555555 */
-  m2 = a * 0x33;                         /* 0x33333333 */
-  m4 = a * 0x0F;                         /* 0x0F0F0F0F */
-  m8 = 0xFF | (0xFF << 16);              /* 0x00FF00FF */
-  m16 = 0xFF | (0xFF << 8);              /* 0x0000FFFF */
+     field boundary in m, moves them up by s, and moves the bits above down by s.
+     All masks are grown from small literals with shifts and XOR: 0x00FF00FF and
+     0x0000FFFF are one OR each, and the three repeating masks follow from
+        0x00FF00FF ^ (0x00FF00FF << 4) = 0x0F0F0F0F
+        0x0F0F0F0F ^ (0x0F0F0F0F << 2) = 0x33333333
+        0x33333333 ^ (0x33333333 << 1) = 0x55555555
+     so no multiplication and no large constant is needed. */
+  int m16 = 0xFF | (0xFF << 8);          /* 0x0000FFFF */
+  int m8  = 0xFF | (0xFF << 16);         /* 0x00FF00FF */
+  int m4  = m8 ^ (m8 << 4);              /* 0x0F0F0F0F */
+  int m2  = m4 ^ (m4 << 2);              /* 0x33333333 */
+  int m1  = m2 ^ (m2 << 1);              /* 0x55555555 */
 
   x = ((x & m1) << 1) | ((x >> 1) & m1);
   x = ((x & m2) << 2) | ((x >> 2) & m2);
