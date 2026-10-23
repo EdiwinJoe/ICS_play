@@ -7,7 +7,7 @@
 | GitHub | [EdiwinJoe](https://github.com/EdiwinJoe) |
 | 仓库 | <https://github.com/EdiwinJoe/lab1Datalab> |
 | 文档 | <https://ics-26fall-fdu.github.io/labs/lab1-data-lab/> |
-| 完成日期 | 2026 年 10 月 9 日 |
+| 完成日期 | 2026 年 10 月 9 日（初版）<br>2026 年 10 月 23 日（按 `dlc` 规则修订：去掉非法运算符、超范围立即数与强制类型转换） |
 
 ---
 
